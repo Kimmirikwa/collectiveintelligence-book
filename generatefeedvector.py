@@ -42,10 +42,8 @@ def getwordcounts(url):
         return 'bogus data', wc
     return d.feed.title, wc
 
-feedlist = open('feedlist.txt').readlines()  # the list of the urls from the file
 
-
-def getCountsAndApperances():
+def getCountsAndApperances(feedlist):
     apcount = collections.defaultdict(int)
     wordcounts = {}
 
@@ -58,14 +56,14 @@ def getCountsAndApperances():
     return wordcounts, apcount
 
 
-def list_of_words(apcount):
+def list_of_words(apcount, num_of_blogs):
     '''
-    Returns the words not too common in the blogs and not to 
+    Returns the words not too common in the blogs and not to
     rare also, between 10% and 50% appearance in the blogs
     '''
     wordlist = []
     for w, bc in apcount.iteritems():
-        frac = float(bc)/len(feedlist)
+        frac = float(bc)/num_of_blogs
         if 0.1 < frac < 0.5:
             wordlist.append(w)
     return wordlist
@@ -92,13 +90,14 @@ def write_data_to_outputfile(wordcounts, wordlist):
 
 
 def main():
+    feedlist = open('feedlist.txt').readlines()  # the list of the urls from the file
     # wordcounts is a dict of of blog titles as keys and the
     # values are the dicts of words as keys and their counts as values
     # apcount is the a dict of words as keys and the values are the numbers of
     # appearances of the words in each blog
-    wordcounts, apcount = getCountsAndApperances()
+    wordcounts, apcount = getCountsAndApperances(feedlist)
 
-    wordlist = list_of_words(apcount)  # words to be used in analysis
+    wordlist = list_of_words(apcount, len(feedlist))  # words to be used in analysis
 
     write_data_to_outputfile(wordcounts, wordlist)
 
