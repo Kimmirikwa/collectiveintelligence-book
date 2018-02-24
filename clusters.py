@@ -3,146 +3,159 @@ import random
 
 
 def readfile(filename):
-  return do_readfile(open(filename).readlines())
-
-
-def do_readfile(lines):
-  colnames = lines[0].strip().split('\t')[1:]
-  rownames = []
-  data = []
-  for line in lines[1:]:
-    p = line.strip().split('\t')
-    rownames.append(p[0])
-    data.append([float(x) for x in p[1:]])
-  return rownames, colnames, data
+    '''
+    The file has columns of the words count in different blogs
+    The first column has the titles of the blogs while the rest have the
+    word counts of each word in the blogs
+    The rows hold the blogs and the count of words
+    The first row has the words while the rest have the counts of the words
+    in the blogs
+    The files looks like this:
+    Blogs word1 word2 word3 word4
+    blog1 10    11    3     6
+    blog2 4     8     20    2
+    blog  9     2     6     1
+    '''
+    lines = [line for line in file(filename)]
+    colnames = lines[0].strip().split('\t')[1:]  # holds the words in the blogs
+    rownames = []  # will hold the blog titles
+    data = []  # the counts of words in blogs
+    for line in lines[1:]:
+        p = line.strip().split('\t')
+        rownames.append(p[0])
+        data.append([float(x) for x in p[1:]])
+    return rownames, colnames, data
 
 
 def pearson(v1, v2):
-  """Returns the similarity between v1 and v2.
+    '''Returns the similarity between v1 and v2.
 
-  1.0 means very similar and 0.0 means no correlation. -1.0 means
-  anticorrelation.  v1 and v2 must have the same number of elements."""
+    1.0 means very similar and 0.0 means no correlation. -1.0 means
+    anticorrelation.  v1 and v2 must have the same number of elements.'''
+    n = len(v1)
+    if n == 0:
+        return 0
 
-  assert len(v1) == len(v2)
+    sum1 = sum(v1)
+    sum2 = sum(v2)
 
-  n = len(v1)
-  if n == 0: return 0
+    sqSum1 = sum([pow(v, 2) for v in v1])
+    sqSum2 = sum([pow(v, 2) for v in v2])
 
-  sum1 = sum(v1)
-  sum2 = sum(v2)
+    pSum = sum([v1[i] * v2[i] for i in range(n)])
 
-  sqSum1 = sum([pow(v, 2) for v in v1])
-  sqSum2 = sum([pow(v, 2) for v in v2])
+    num = pSum - (sum1*sum2/n)
+    den = sqrt((sqSum1 - pow(sum1, 2)/n) * (sqSum2 - pow(sum2, 2)/n))
+    if den == 0:
+        return 0
 
-  pSum = sum([v1[i] * v2[i] for i in range(n)])
-
-  num = pSum - (sum1*sum2/n)
-  den = sqrt((sqSum1 - pow(sum1, 2)/n) * (sqSum2 - pow(sum2, 2)/n))
-  if den == 0:
-    # It's not clear what to do here. It can happen when all components are
-    # equal (which means "very similar"), or if one of the vectors contains
-    # only zeroes, or if the two vectors contain only one element. In these
-    # cases, this function can't figure out how to "scale" its result. Cop
-    # out and simply return 0 for those cases.
-    return 0
-
-  return num/den
-
-
-def pearson_dist(v1, v2):
-  """0.0 means "near", 1.0 means "far"."""
-  return 1 - pearson(v1, v2)
+    return 1.0 - num/den  # closely related items will have a smaller distance between them
 
 
 class bicluster(object):
-  def __init__(self, vec, left=None, right=None, distance=0.0, id=None):
-    self.vec = vec
-    self.left = left
-    self.right = right
-    self.distance = distance
-    self.id = id
+    def __init__(self, vec, left=None, right=None, distance=0.0, id=None):
+        '''
+        A cluster
+        vect is the data of the cluster
+        left is the left member of the cluster
+        right is the right member of the cluster
+        distance is the distance between the members of the cluster
+        id is the id of the cluster
+        '''
+        self.vec = vec
+        self.left = left
+        self.right = right
+        self.distance = distance
+        self.id = id
 
-  def __eq__(self, b):
-    return (self.vec == b.vec
-        and self.left == b.left
-        and self.right == b.right
-        and self.distance == b.distance
-        and self.id == b.id)
+    def __eq__(self, b):
+        return (self.vec == b.vec
+            and self.left == b.left
+            and self.right == b.right
+            and self.distance == b.distance
+            and self.id == b.id)
 
-  # If we have __eq__, we better have __ne__ too
-  # so that `not (a == b) == a != b`
-  def __ne__(self, b):
-    return not (self == b)
+    # If we have __eq__, we better have __ne__ too
+    # so that `not (a == b) == a != b`
+    def __ne__(self, b):
+        return not (self == b)
 
-  # If we have __eq__, we better have __hash__ too
-  # so that `a == b => hash(a) == has(b)`. Since we don't need bicluster objects
-  # as dict keys, it's ok if this function fails loudly (instead of silently
-  # returning a wrong value, which is the defaul)
-  def __hash__(self):
-    raise NotImplementedError
+    # If we have __eq__, we better have __hash__ too
+    # so that `a == b => hash(a) == has(b)`. Since we don't need bicluster objects
+    # as dict keys, it's ok if this function fails loudly (instead of silently
+    # returning a wrong value, which is the defaul)
+    def __hash__(self):
+        raise NotImplementedError
 
-  def __str__(self):
-    return '%s %f %d (%s %s)' % (str(self.vec), self.distance, self.id,
-        self.left, self.right)
-
-
-def mergevecs(a, b):
-  return [(a[i] + b[i])/2.0 for i in range(len(a))]
-
-
-def hcluster(rows, distance=pearson_dist):
-  distances = {}
-  currentclustid = -1
-
-  # Clusters start off as just rows
-  clust = [bicluster(rows[i], id=i) for i in range(len(rows))]
-
-  # O(n^3), yuck! Effectively, only the distance() calls are expensive,
-  # and we cache them, so this is really O(n^2)
-  while len(clust) > 1:
-    lowestpair = 0, 1
-    closest = distance(clust[0].vec, clust[1].vec)
-
-    # Loop through every pair looking for the smallest distance
-    for i in range(len(clust)):
-      for j in range(i + 1, len(clust)):
-        # cache distances. Makes this much faster.
-        # (can't use the cache() function because we cache on ids, not
-        # function arguments. as clust shrinks, we can't just cache on indices
-        # either)
-        if (clust[i].id,clust[j].id) not in distances: 
-          distances[(clust[i].id,clust[j].id)] = distance(
-              clust[i].vec,clust[j].vec)
-        d = distances[(clust[i].id,clust[j].id)]
-        
-        if d < closest:
-          closest = d
-          lowestpair = i, j
-
-    # Merge closest pair into a single vector
-    mergevec = mergevecs(clust[lowestpair[0]].vec, clust[lowestpair[1]].vec)
-
-    newcluster = bicluster(mergevec, left=clust[lowestpair[0]],
-        right=clust[lowestpair[1]], distance=closest, id=currentclustid)
-
-    # Update
-    currentclustid -= 1
-    del clust[lowestpair[1]]  # Need to del() bigger index first!
-    del clust[lowestpair[0]]
-    clust.append(newcluster)
-
-  return clust[0]
+    def __str__(self):
+        return '%s %f %d (%s %s)' % (str(self.vec), self.distance, self.id,
+            self.left, self.right)
 
 
+def hcluster(rows, distance=pearson):
+    distances = {}
+    currentclustid = -1
+
+    # Clusters start off as just blogs, which are the rows
+    clust = [bicluster(rows[i], id=i) for i in xrange(len(rows))]
+
+    # O(n^3), yuck! Effectively, only the distance() calls are expensive,
+    # and we cache them, so this is really O(n^2)
+    while len(clust) > 1:
+        # starting with the first 2 elements of the cluster as the closest pair
+        lowestpair = 0, 1
+        closest = distance(clust[0].vec, clust[1].vec)
+
+        # Loop through every pair looking for the smallest distance
+        for i in range(len(clust)):
+            for j in range(i + 1, len(clust)):
+                # cache distances. Makes this much faster.
+                # (can't use the cache() function because we cache on ids, not
+                # function arguments. as clust shrinks, we can't just cache on indices
+                # either)
+                if (clust[i].id, clust[j].id) not in distances:
+                    distances[(clust[i].id, clust[j].id)] = distance(
+                        clust[i].vec, clust[j].vec)
+                d = distances[(clust[i].id, clust[j].id)]
+                
+                if d < closest:
+                    closest = d
+                    lowestpair = i, j
+
+        # Merge closest pair into a single vector by doing the average of the
+        # similar words occurrence
+        mergevec = [(clust[lowestpair[0]].vec[i] + clust[lowestpair[1]].vec[i]) / 2.0
+            for i in range(len(clust[0].vec))]
+
+        # creating a new cluster from the merged clusters
+        newcluster = bicluster(mergevec, left=clust[lowestpair[0]],
+            right=clust[lowestpair[1]], distance=closest, id=currentclustid)
+
+        # Update: the merged clusters need to be removed and the merge
+        # needs to be added to the list of the clusters
+        # Need to del() bigger index first! Deletion in a list leads to
+        # shifting of the reamaining members to take the lower positions if
+        # they are available
+        currentclustid -= 1  # cluster ids that were not in the original set are negative
+        del clust[lowestpair[1]]
+        del clust[lowestpair[0]]
+        clust.append(newcluster)
+
+    return clust[0]
+
+
+# printin the clusters
 def printclust(clust, labels=None, n=0):
-  print ' ' * n,
-  if clust.id < 0:  # branch
-    print '-'
-  else:
-    print labels[clust.id] if labels else clust.id
+    print ' ' * n,
+    if clust.id < 0:  # branch
+        print '-'
+    else:
+        print labels[clust.id] if labels else clust.id
 
-  if clust.left: printclust(clust.left, labels=labels, n=n+1)
-  if clust.right: printclust(clust.right, labels=labels, n=n+1)
+    if clust.left:
+        printclust(clust.left, labels=labels, n=n+1)
+    if clust.right:
+        printclust(clust.right, labels=labels, n=n+1)
 
 
 def transpose(data):
