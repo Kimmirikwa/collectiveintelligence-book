@@ -231,12 +231,22 @@ def kcluster(rows, distance=pearson, k=4):
 
 
 def tanimoto_dist(v1, v2):
-  c1, c2, shr = 0, 0, 0
-  for i in range(len(v1)):
-    if v1[i] != 0: c1 += 1
-    if v2[i] != 0: c2 += 1
-    if v1[i] != 0 and v2[i] != 0: shr += 1
-  return 1.0 - float(shr)/(c1 + c2 - shr)
+    """
+    Returns the ratio of intersection set to union set
+    intersection set - only the items that are in both sets
+    union - all the items in either set
+
+    This measures the overlap between c1 and c2
+    """
+    c1, c2, shr = 0, 0, 0
+    for i in range(len(v1)):
+        if v1[i] != 0:
+            c1 += 1  # item in c1
+        if v2[i] != 0:
+            c2 += 1  # item in c2
+        if v1[i] != 0 and v2[i] != 0:
+            shr += 1  # item both in c1 and c2
+    return 1.0 - float(shr)/(c1 + c2 - shr)
 
 
 def hypot(v):
