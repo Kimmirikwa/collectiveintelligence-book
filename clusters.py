@@ -158,62 +158,76 @@ def printclust(clust, labels=None, n=0):
         printclust(clust.right, labels=labels, n=n+1)
 
 
+def rotate_matrix(data):
+    '''
+    converting the rows to columns and columns to rows
+    '''
+    new_data = []
+    for i in len(data[0]):
+        new_row = [data[j][i] for j in range(len(data))]
+        new_data.append(new_row)
+
+    return new_data
+
+
 def transpose(data):
   return map(list, zip(*data))
 
 
-def rowbb(rows):
-  """Returns the bounding box of the row vectors of the matrix `rows`
-  as list of min/max pairs for each dimension."""
-  return zip(map(min, transpose(rows)), map(max, transpose(rows)))
+def kcluster(rows, distance=pearson, k=4):
+    """Returns a list of `k` lists, each containing all indices of a cluster.
+    rows - The data to be clustered
+    distance - the method of calculating the distance
+    k - the number of clusters needed"""
 
+    # the 2 lines below are used to find the k centroids
+    # the number of data points in each centroid is the same as the number of
+    # data points in each row of data
+    # the values of the initial centroids are obtained by finding random
+    # values between the max and the min of a datapoint in the rows
+    ranges = [(min([row[i] for row in rows]), max([row[i] for row in rows])) for i in range(len(rows[0]))]
+    clusters = [[random.random() * (ranges[i][1] - ranges[i][0]) + ranges[i][0] for i in range(len(rows[0]))] for j in range(k)]
 
-def getnearest(v, points, distance):
-  """Returns the index of the point in `points` closest to `v`."""
-  bestmatch = 0
-  for i in range(len(points)):
-    d = distance(points[i], v)
-    if d < distance(points[bestmatch], v): bestmatch = i
-  return bestmatch
+    lastmatches = None
+    for t in range(100):  # will iterate to a max of 100 times
+        print 'Iteration', t
+        # will hold lists of row indixes belonging to a cluster
+        bestmatches = [[] for i in range(k)]
 
+        # find best centroid for each row i.e the centroid closest to
+        # each row. It is the centroid with the lowest distance from
+        # the row
+        for j in range(len(rows)):
+            row = rows[j]
+            bestmatch = 0
+            for i in range(k):
+                d = distance(clusters[i], row)
+                if d < distance(clusters[bestmatch], row):
+                    bestmatch = i
 
-def average(indices, rows):
-  """Returns the average of all rows indexed by `indices`. All rows have to
-  have the same number of elements."""
-  avg = [0.0] * len(rows[0])
-  if len(indices) > 0:
-    for rowid in indices:
-      for m in range(len(rows[0])):
-        avg[m] += rows[rowid][m]
-    for j in range(len(avg)):
-      avg[j] /= len(indices)
-  return avg
+            bestmatches[bestmatch].append(j)
+          
+        # if the results didn't change in this iteration, we are done
+        # because we cannot obtain a better classification than this. The
+        # learning has already saturated
+        if bestmatches == lastmatches:
+            break
+        lastmatches = bestmatches
 
+        # move centroids to the averages of their elements
+        # this is done by first adding all the data points of rows belonging
+        # to a cluster and then dividing by the number of rows that
+        # belong to the cluster
+        for i in range(k):
+            avgs = [0.0] * len(rows[0])
+            if bestmatches[i] > 0:
+                for rowid in bestmatches[i]:
+                    for m in rows[rowid]:
+                        avgs[m] = rows[rowid][m]
+                for j in range(len(avgs)):
+                    avgs[j] /= len(bestmatches[i])
 
-def kcluster(rows, distance=pearson_dist, k=4):
-  """Returns a list of `k` lists, each containing all indices of a cluster."""
-
-  ranges = rowbb(rows)
-  clusters = [[random.uniform(r[0], r[1]) for r in ranges] for j in range(k)]
-
-  lastmatches = None
-  for t in range(100):
-    print 'Iteration', t
-    bestmatches = [[] for i in range(k)]
-
-    # find best centroid for each row
-    for j in range(len(rows)):
-      bestmatches[getnearest(rows[j], clusters, distance)].append(j)
-      
-    # if the results didn't change in this iteration, we are done
-    if bestmatches == lastmatches: break
-    lastmatches = bestmatches
-
-    # move centroids to the averages of their elements
-    for i in range(k):
-      clusters[i] = average(bestmatches[i], rows)
-
-  return bestmatches
+    return bestmatches
 
 
 def tanimoto_dist(v1, v2):
